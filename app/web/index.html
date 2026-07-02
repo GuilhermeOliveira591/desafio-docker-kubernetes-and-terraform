@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mural de Recados — Desafio Full Cycle</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Mural de Recados</h1>
+    <p class="subtitle">Desafio Docker + Kubernetes + Terraform · Full Cycle</p>
+
+    <form id="form" class="card">
+      <input id="author" name="author" placeholder="Seu nome" maxlength="60" required />
+      <textarea id="content" name="content" placeholder="Deixe um recado..." maxlength="280" required></textarea>
+      <button type="submit">Publicar</button>
+    </form>
+
+    <p id="status" class="status" role="status"></p>
+
+    <ul id="messages" class="messages"></ul>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

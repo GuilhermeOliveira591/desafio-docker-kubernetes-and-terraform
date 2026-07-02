@@ -1,0 +1,58 @@
+# Job de migração. É um HOOK do Helm (post-install/post-upgrade): roda após os
+# recursos normais existirem (Postgres, Secret, ConfigMap das migrations) e é
+# recriado a cada release. Espera o banco aceitar conexões e aplica os .sql em ordem.
+#
+# Por que a API não migra sozinha? Para separar "subir schema" de "servir tráfego" —
+# é o mesmo motivo de a readiness da API só passar depois deste Job.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mural.fullname" . }}-migrate
+  labels:
+    {{- include "mural.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "mural.labels" . | nindent 8 }}
+        component: migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: {{ .Values.postgres.image }}
+          env:
+            - name: PGHOST
+              value: {{ include "mural.postgresHost" . }}
+            - name: PGUSER
+              value: {{ .Values.postgres.user | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.postgres.database | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mural.fullname" . }}-db
+                  key: POSTGRES_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              echo "aguardando o Postgres aceitar conexões..."
+              until pg_isready -q; do sleep 2; done
+              for f in $(ls /migrations/*.sql | sort); do
+                echo "aplicando $f"
+                psql -v ON_ERROR_STOP=1 -f "$f"
+              done
+              echo "migrations aplicadas."
+          volumeMounts:
+            - name: migrations
+              mountPath: /migrations
+      volumes:
+        - name: migrations
+          configMap:
+            name: {{ include "mural.fullname" . }}-migrations
