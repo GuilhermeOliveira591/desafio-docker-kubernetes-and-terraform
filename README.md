@@ -23,7 +23,7 @@ reproduza o ambiente de forma confiável.
 A decisão foi tomada: o Mural vai para Kubernetes, e o provisionamento tem que ser
 **reproduzível e versionado** — nada de `kubectl apply` manual, nada de "rodei uns comandos
 e deu certo". Você é a pessoa de infra que vai fazer essa ponte. Recebe a aplicação como
-está, o desenho do estado-alvo e uma rubrica de avaliação. O resto — os Dockerfiles, o chart
+está, o desenho do estado-alvo e os critérios de aceite. O resto — os Dockerfiles, o chart
 e o Terraform que rege tudo — é o que você entrega.
 
 ## Sobre o foco do desafio
@@ -45,7 +45,7 @@ O desafio tem um núcleo obrigatório e um bônus opcional:
 
 - **Obrigatório** — containerizar a app (Docker), empacotar os manifests num **Helm chart** e
   escrever o **Terraform maestro** que provisiona o cluster e implanta o chart de forma
-  idempotente. É o que a rubrica cobra e o que precisa rodar de ponta a ponta.
+  idempotente. É o que os critérios de aceite cobram e o que precisa rodar de ponta a ponta.
 - **Bônus** — autoscaling (HPA) com prova de escala sob carga, e automação do fluxo
   (Makefile/script). Conta pontos extras, não é pré-requisito.
 
@@ -80,8 +80,8 @@ O repositório traz um **Mural de Recados** funcional:
     existe (ou seja, a migração já rodou).
   - `GET/POST /api/messages` — lista e cria recados, persistindo no Postgres.
 - **Migrations** (`app/api/migrations/`) — a API **não cria a tabela sozinha**; o schema vem
-  de `001_init.sql` (e há um `002_seed.sql` opcional). Isso precisa rodar antes de a API ficar
-  pronta.
+  de `001_init.sql` e `002_seed.sql` (dados iniciais). Ambas precisam rodar antes de a API
+  ficar pronta.
 - **Front estático** (`app/web/`) — HTML/CSS/JS servido por nginx. Ele fala com a API por
   caminho relativo (`/api/...`) e **não conhece a URL absoluta** dela: quem roteia é o nginx,
   cujo upstream vem de variável de ambiente (`API_UPSTREAM`). O mesmo front funciona no compose
@@ -146,8 +146,8 @@ não precisa carregar o mundo junto.
 **Tarefa.** Produza os Dockerfiles da API (`api.Dockerfile`) e do front (`web.Dockerfile`) em `infra/docker/`:
 
 - A API é um binário Go: use **multi-stage** e termine numa imagem **mínima**
-  (`scratch`/`distroless`). Deixe registrado o tamanho **antes e depois** — é a prova de que
-  você entendeu o ganho, não só copiou um Dockerfile.
+  (`scratch`/`distroless`). Deixe registrado o tamanho **antes e depois** no README do seu
+  fork — é a prova de que você entendeu o ganho, não só copiou um Dockerfile.
 - O front é estático servido por **nginx**, com o proxy de `/api` parametrizável por env
   (como no compose) — para a mesma imagem servir em qualquer ambiente sem recompilar.
 
@@ -195,16 +195,16 @@ funcionando (isso, num cluster de verdade, é downtime e perda de dados).
 `versions.tf`) usando os providers `kind` + `helm` + `kubernetes`. Ele é o **maestro**: um único
 ponto de entrada que orquestra tudo.
 
-- `terraform apply` **do zero** cria o cluster kind, disponibiliza as imagens no cluster,
-  instala o ingress-nginx e faz o **deploy do chart** — e o Mural responde;
+- `terraform apply` **do zero** cria o cluster kind, disponibiliza as imagens no cluster
+  (dica: `kind load docker-image`), instala o ingress-nginx e faz o **deploy do chart** no
+  namespace `mural` — e o Mural responde;
 - é **idempotente**: `apply` rodado duas vezes seguidas → **`0 added, 0 changed, 0
   destroyed`**, nada recriado à toa;
 - `terraform destroy` remove o cluster e tudo que foi criado, sem sobra.
 
 ## Critérios de Aceite
 
-A entrega é avaliada contra os critérios abaixo. A pontuação detalhada está na
-[rubrica](docs/rubrica.md).
+A entrega é avaliada contra os critérios abaixo.
 
 ### Docker
 
@@ -224,8 +224,8 @@ A entrega é avaliada contra os critérios abaixo. A pontuação detalhada está
 
 ### Terraform
 
-- ☐ `terraform apply` num ambiente limpo → cluster + namespace + deploy do chart, e a app
-  responde no navegador.
+- ☐ `terraform apply` num ambiente limpo → cluster + namespace `mural` + deploy do chart, e a
+  app responde no navegador.
 - ☐ **Idempotência**: `apply` 2x → nenhum recurso recriado.
 - ☐ `terraform destroy` remove tudo.
 - ☐ Uso adequado dos providers `kind`/`helm`/`kubernetes` e código organizado.
@@ -251,7 +251,7 @@ A entrega é avaliada contra os critérios abaixo. A pontuação detalhada está
 ├── app/                          (aplicação pronta — NÃO alterar)
 │   ├── api/                      API em Go + migrations/
 │   └── web/                      front estático + template do nginx
-├── docs/                         (arquitetura-alvo e rubrica)
+├── docs/                         
 ├── infra/                        <- AQUI você trabalha
 │   ├── docker/
 │   │   ├── api.Dockerfile        multi-stage → imagem mínima (scratch/distroless)
@@ -321,7 +321,3 @@ para 127.0.0.1) e você não precisa mexer em `/etc/hosts`.
   tamanho da imagem antes/depois) diferencia a entrega e conta ponto.
 
 ---
-
-> **Instrutor(a):** uma solução de referência completa e validada está em `solucao/` (com o
-> passo a passo em [`solucao/VALIDACAO.md`](solucao/VALIDACAO.md)). **Não olhe se você é
-> aluno** — resolver sozinho é o ponto.
