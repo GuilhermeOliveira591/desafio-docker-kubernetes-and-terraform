@@ -143,7 +143,7 @@ toolchain e código-fonte junto. Num cluster, isso é imagem lenta para puxar, m
 de ataque e mais coisa para dar errado. Uma API em Go compila para um binário estático — ela
 não precisa carregar o mundo junto.
 
-**Tarefa.** Produza os `Dockerfile` da API e do front em `infra/docker/`:
+**Tarefa.** Produza os Dockerfiles da API (`api.Dockerfile`) e do front (`web.Dockerfile`) em `infra/docker/`:
 
 - A API é um binário Go: use **multi-stage** e termine numa imagem **mínima**
   (`scratch`/`distroless`). Deixe registrado o tamanho **antes e depois** — é a prova de que
@@ -168,7 +168,7 @@ peça de dentro dele existe por um motivo específico:
 - um pod não pode consumir o nó inteiro e derrubar os vizinhos — por isso **requests/limits**;
 - a **migração** tem que rodar antes de a API atender — senão `/readyz` nunca passa.
 
-**Tarefa.** Produza um **Helm chart** em `infra/helm/` (não YAML solto) cobrindo, no mínimo:
+**Tarefa.** Produza um **Helm chart** em `infra/helm/mural/` (não YAML solto) cobrindo, no mínimo:
 
 - `Deployment` da API e do front;
 - **`StatefulSet` + PVC** para o Postgres;
@@ -191,8 +191,9 @@ reproduzível por qualquer pessoa a partir de um comando. E ele tem que ser **id
 rodar de novo sobre um ambiente que já está no ar não pode destruir e recriar o que está
 funcionando (isso, num cluster de verdade, é downtime e perda de dados).
 
-**Tarefa.** Produza o Terraform em `infra/terraform/` usando os providers `kind` + `helm` +
-`kubernetes`. Ele é o **maestro**: um único ponto de entrada que orquestra tudo.
+**Tarefa.** Produza o Terraform em `infra/terraform/` (`main.tf`, `variables.tf`, `outputs.tf`,
+`versions.tf`) usando os providers `kind` + `helm` + `kubernetes`. Ele é o **maestro**: um único
+ponto de entrada que orquestra tudo.
 
 - `terraform apply` **do zero** cria o cluster kind, disponibiliza as imagens no cluster,
   instala o ingress-nginx e faz o **deploy do chart** — e o Mural responde;
@@ -245,16 +246,36 @@ A entrega é avaliada contra os critérios abaixo. A pontuação detalhada está
 
 ```
 .
-├── README.md                     (este enunciado; você pode substituir por um README seu no fork)
+├── README.md                     (este enunciado; substitua por um README seu no fork)
 ├── docker-compose.yml            (não altere; é só para entender a app)
 ├── app/                          (aplicação pronta — NÃO alterar)
 │   ├── api/                      API em Go + migrations/
 │   └── web/                      front estático + template do nginx
 ├── docs/                         (arquitetura-alvo e rubrica)
 ├── infra/                        <- AQUI você trabalha
-│   ├── docker/                   (você preenche) Dockerfiles da API e do front
-│   ├── helm/                     (você preenche) o chart
-│   └── terraform/                (você preenche) o maestro kind + helm + kubernetes
+│   ├── docker/
+│   │   ├── api.Dockerfile        multi-stage → imagem mínima (scratch/distroless)
+│   │   └── web.Dockerfile        nginx + proxy /api parametrizável
+│   ├── helm/
+│   │   └── mural/                chart do Mural de Recados
+│   │       ├── Chart.yaml
+│   │       ├── values.yaml       valores parametrizáveis (imagens, tags, host, credencial)
+│   │       ├── files/
+│   │       │   └── migrations/   SQL copiado de app/api/migrations/
+│   │       └── templates/
+│   │           ├── _helpers.tpl
+│   │           ├── api.yaml      Deployment + Service da API (probes, limits)
+│   │           ├── web.yaml      Deployment + Service do front
+│   │           ├── postgres.yaml StatefulSet + PVC + Service do Postgres
+│   │           ├── ingress.yaml  / → front, /api → API
+│   │           ├── secret.yaml   credencial do banco (DATABASE_URL)
+│   │           ├── migrations-configmap.yaml
+│   │           └── migrate-job.yaml  Job/hook que roda a migração antes da API
+│   └── terraform/
+│       ├── main.tf               maestro: kind + ingress-nginx + helm release
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── versions.tf           providers kind/helm/kubernetes
 └── ...
 ```
 
