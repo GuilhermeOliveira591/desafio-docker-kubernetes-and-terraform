@@ -53,8 +53,8 @@ Feche o obrigatório antes de partir para o bônus.
 
 ## Objetivo
 
-Entregar, num fork público deste repositório, tudo dentro de `infra/`, de modo que a partir
-de um ambiente limpo:
+Entregar, num fork público deste repositório, os Dockerfiles em `app/docker/` e todo o resto
+dentro de `infra/`, de modo que a partir de um ambiente limpo:
 
 - `terraform apply` **do zero** cria o cluster, disponibiliza as imagens, sobe o Ingress e
   implanta a aplicação — e o Mural responde no navegador;
@@ -112,7 +112,7 @@ O estado a atingir está em [`docs/arquitetura.md`](docs/arquitetura.md): um clu
 onde o Ingress roteia `/` para o front e `/api` para a API, a API conversa com um Postgres em
 **StatefulSet + PVC**, um **Job de migração** sobe o schema antes de a API ficar pronta, e o
 **Terraform** rege todo o provisionamento — cria o cluster, disponibiliza as imagens, instala
-o ingress-nginx e aplica o chart.
+o Traefik (ingress controller) e aplica o chart.
 
 ### As fricções propositais
 
@@ -132,7 +132,7 @@ alteração do código da app.
 
 ## Requisitos
 
-Tudo é produzido dentro de `infra/`. Nenhum requisito é gratuito: cada um resolve uma dor
+Os Dockerfiles ficam em `app/docker/` e todo o resto é produzido dentro de `infra/`. Nenhum requisito é gratuito: cada um resolve uma dor
 concreta de operar o Mural fora de um laptop. Leia o **porquê** antes de sair construindo — é
 ele que diz se você resolveu de verdade ou só cumpriu tabela.
 
@@ -143,7 +143,7 @@ toolchain e código-fonte junto. Num cluster, isso é imagem lenta para puxar, m
 de ataque e mais coisa para dar errado. Uma API em Go compila para um binário estático — ela
 não precisa carregar o mundo junto.
 
-**Tarefa.** Produza os Dockerfiles da API (`api.Dockerfile`) e do front (`web.Dockerfile`) em `infra/docker/`:
+**Tarefa.** Produza os Dockerfiles da API (`api.Dockerfile`) e do front (`web.Dockerfile`) em `app/docker/` (o Dockerfile é da aplicação, por isso mora junto dela; o resto da entrega segue em `infra/`):
 
 - A API é um binário Go: use **multi-stage** e termine numa imagem **mínima**
   (`scratch`/`distroless`). Deixe registrado o tamanho **antes e depois** no README do seu
@@ -196,7 +196,7 @@ funcionando (isso, num cluster de verdade, é downtime e perda de dados).
 ponto de entrada que orquestra tudo.
 
 - `terraform apply` **do zero** cria o cluster kind, disponibiliza as imagens no cluster
-  (dica: `kind load docker-image`), instala o ingress-nginx e faz o **deploy do chart** no
+  (dica: `kind load docker-image`), instala o Traefik e faz o **deploy do chart** no
   namespace `mural` — e o Mural responde;
 - é **idempotente**: `apply` rodado duas vezes seguidas → **`0 added, 0 changed, 0
   destroyed`**, nada recriado à toa;
@@ -248,20 +248,20 @@ A entrega é avaliada contra os critérios abaixo.
 .
 ├── README.md                     (este enunciado; substitua por um README seu no fork)
 ├── docker-compose.yml            (não altere; é só para entender a app)
-├── app/                          (aplicação pronta — NÃO alterar)
+├── app/                          (aplicação pronta — NÃO alterar api/ e web/)
 │   ├── api/                      API em Go + migrations/
-│   └── web/                      front estático + template do nginx
+│   ├── web/                      front estático + template do nginx
+│   └── docker/                   <- AQUI você trabalha (Dockerfiles)
+│       ├── api.Dockerfile        multi-stage → imagem mínima (scratch/distroless)
+│       └── web.Dockerfile        nginx + proxy /api parametrizável
 ├── docs/                         
 ├── infra/                        <- AQUI você trabalha
-│   ├── docker/
-│   │   ├── api.Dockerfile        multi-stage → imagem mínima (scratch/distroless)
-│   │   └── web.Dockerfile        nginx + proxy /api parametrizável
 │   ├── helm/
 │   │   └── mural/                chart do Mural de Recados
 │   │       ├── Chart.yaml
 │   │       ├── values.yaml       valores parametrizáveis (imagens, tags, host, credencial)
 │   │       ├── files/
-│   │       │   └── migrations/   SQL copiado de app/api/migrations/
+│   │       │   └── migrations/   Já existente
 │   │       └── templates/
 │   │           ├── _helpers.tpl
 │   │           ├── api.yaml      Deployment + Service da API (probes, limits)
@@ -272,7 +272,7 @@ A entrega é avaliada contra os critérios abaixo.
 │   │           ├── migrations-configmap.yaml
 │   │           └── migrate-job.yaml  Job/hook que roda a migração antes da API
 │   └── terraform/
-│       ├── main.tf               maestro: kind + ingress-nginx + helm release
+│       ├── main.tf               maestro: kind + Traefik + helm release
 │       ├── variables.tf
 │       ├── outputs.tf
 │       └── versions.tf           providers kind/helm/kubernetes
@@ -282,7 +282,7 @@ A entrega é avaliada contra os critérios abaixo.
 ## Como entregar
 
 1. Faça um **fork** deste repositório.
-2. Resolva o desafio dentro de `infra/`.
+2. Resolva o desafio: os Dockerfiles em `app/docker/` e o restante (Helm + Terraform) dentro de `infra/`.
 3. Garanta que o ciclo `apply → apply → destroy` funciona a partir de um ambiente limpo.
 4. Envie o **link do seu fork**. Um `README` curto explicando decisões e como rodar conta
    pontos.

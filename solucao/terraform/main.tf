@@ -2,7 +2,7 @@
 # Um único `terraform apply`:
 #   1. cria o cluster kind (com nó pronto para Ingress e port-mappings 80/443);
 #   2. builda e carrega as imagens da API e do front no cluster;
-#   3. instala o ingress-nginx;
+#   3. instala o Traefik (ingress controller);
 #   4. cria o namespace e implanta o chart da app.
 # `apply` repetido é idempotente; `destroy` remove o cluster inteiro.
 
@@ -81,40 +81,53 @@ resource "null_resource" "images" {
   }
 }
 
-# 3) Ingress controller (flavor kind: hostPort no nó ingress-ready).
-resource "helm_release" "ingress_nginx" {
-  name             = "ingress-nginx"
-  repository       = "https://kubernetes.github.io/ingress-nginx"
-  chart            = "ingress-nginx"
-  version          = "4.11.2"
-  namespace        = "ingress-nginx"
+# 3) Ingress controller — Traefik. O projeto ingress-nginx foi descontinuado
+#    (aposentado pela comunidade Kubernetes), então usamos o Traefik no lugar.
+#    Flavor kind: DaemonSet fixado no nó ingress-ready ligando as portas 80/443
+#    direto no host (hostPort) — o mesmo esquema de antes. Service ClusterIP porque
+#    o kind não tem provider de LoadBalancer: o tráfego entra pelo hostPort.
+#    O chart já cria o IngressClass "traefik" por padrão (ingressClass.enabled=true).
+resource "helm_release" "traefik" {
+  name             = "traefik"
+  repository       = "https://traefik.github.io/charts"
+  chart            = "traefik"
+  version          = "41.0.2"
+  namespace        = "traefik"
   create_namespace = true
   wait             = true
   timeout          = 300
 
   set {
-    name  = "controller.hostPort.enabled"
-    value = "true"
+    name  = "deployment.kind"
+    value = "DaemonSet"
   }
   set {
-    name  = "controller.service.type"
+    name  = "ports.web.hostPort"
+    value = "80"
+  }
+  set {
+    name  = "ports.websecure.hostPort"
+    value = "443"
+  }
+  set {
+    name  = "service.spec.type"
     value = "ClusterIP"
   }
   set {
-    name  = "controller.nodeSelector.ingress-ready"
+    name  = "nodeSelector.ingress-ready"
     value = "true"
     type  = "string"
   }
   set {
-    name  = "controller.tolerations[0].key"
+    name  = "tolerations[0].key"
     value = "node-role.kubernetes.io/control-plane"
   }
   set {
-    name  = "controller.tolerations[0].operator"
+    name  = "tolerations[0].operator"
     value = "Exists"
   }
   set {
-    name  = "controller.tolerations[0].effect"
+    name  = "tolerations[0].effect"
     value = "NoSchedule"
   }
 
@@ -162,6 +175,6 @@ resource "helm_release" "app" {
 
   depends_on = [
     null_resource.images,
-    helm_release.ingress_nginx,
+    helm_release.traefik,
   ]
 }

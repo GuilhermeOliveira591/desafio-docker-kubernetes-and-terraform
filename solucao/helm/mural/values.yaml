@@ -50,5 +50,5 @@ web:
       memory: 64Mi
 
 ingress:
-  className: nginx
+  className: traefik
   host: mural.localtest.me

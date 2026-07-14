@@ -11,7 +11,7 @@ flowchart TB
 
     subgraph host["Máquina local (kind mapeia portas 80/443)"]
       subgraph cluster["Cluster Kubernetes (kind)"]
-        ing["Ingress (ingress-nginx)"]
+        ing["Ingress (Traefik)"]
 
         subgraph nsapp["namespace: mural"]
           ing -->|/| websvc["Service: web"]
@@ -38,7 +38,7 @@ flowchart TB
 
 | Peça | Papel | Detalhe que importa |
 |------|-------|---------------------|
-| **Terraform** | Maestro idempotente | Cria o cluster kind, builda/carrega as imagens, instala o ingress-nginx e aplica o chart. `apply` 2x não recria nada; `destroy` limpa tudo. |
+| **Terraform** | Maestro idempotente | Cria o cluster kind, builda/carrega as imagens, instala o Traefik e aplica o chart. `apply` 2x não recria nada; `destroy` limpa tudo. |
 | **Helm chart** | Empacota os manifests | Deployment (api/web), StatefulSet+PVC (postgres), Services, Ingress, ConfigMap, Secret, Job de migração. |
 | **Ingress** | Porta de entrada | `/` → front, `/api` → API. Exposto em `localhost` via port-mapping do kind. |
 | **Front (nginx)** | Serve estático + proxy | Não conhece a URL absoluta da API — faz proxy de `/api` via `${API_UPSTREAM}`. |
